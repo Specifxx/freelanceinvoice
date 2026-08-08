@@ -1,0 +1,46 @@
+{
+  "name": "freelanceinvoice",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Branded invoices for freelancers, with a payment link and automatic reminders so you get paid faster.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx src/db/migrate.ts",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Specifxx/freelanceinvoice.git"
+  },
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@react-pdf/renderer": "^4.5.1",
+    "date-fns": "^4.4.0",
+    "drizzle-orm": "^0.45.2",
+    "next": "^16.3.0",
+    "postgres": "^3.4.9",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "resend": "^6.18.1",
+    "stripe": "^22.4.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/node": "^26.2.0",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "drizzle-kit": "^0.31.10",
+    "tailwindcss": "^4.3.3",
+    "tsx": "^4.23.11",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
+  }
+}
