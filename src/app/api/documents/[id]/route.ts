@@ -7,6 +7,7 @@ import { jsonError, resolveDocumentActor } from '@/lib/document-access'
 import { saveDocument } from '@/lib/invoices'
 import { LIMITS, rateLimit } from '@/lib/rate-limit'
 import { clientIpFrom } from '@/lib/events'
+import { MAX_TAX_BPS, MAX_TAX_PERCENT } from '@/lib/totals'
 import { isValidHexColor, isThemeId } from '@/themes'
 
 export const runtime = 'nodejs'
@@ -29,7 +30,11 @@ const BodySchema = z.object({
   issueDate: z.string().refine(isIsoDate, 'Invalid issue date'),
   dueDate: z.string().refine(isIsoDate, 'Invalid due date'),
   currency: z.string().length(3),
-  taxRateBps: z.number().int().min(0).max(100_000),
+  taxRateBps: z
+    .number()
+    .int()
+    .min(0, 'Tax rate cannot be negative.')
+    .max(MAX_TAX_BPS, `Tax rate cannot be above ${MAX_TAX_PERCENT}%.`),
   taxLabel: z.string().max(40),
   notes: z.string().max(4000).nullable().optional(),
   themeId: z.string(),

@@ -7,7 +7,7 @@ import { Button, Field, Input, Select, Textarea, Alert, cn } from './ui'
 import { addDaysIso } from '@/lib/dates'
 import { centsToInput, parseMoneyToCents } from '@/lib/money'
 import { buildSnapshotFromParts } from '@/lib/snapshot'
-import { bpsToPercent, percentToBps } from '@/lib/totals'
+import { bpsToPercent, percentToBps, validateTaxPercent } from '@/lib/totals'
 import type { LineItemPreset } from '@/niches'
 import { THEME_LIST } from '@/themes'
 
@@ -217,8 +217,14 @@ export function InvoiceBuilder({
     [state, showsOurBranding],
   )
 
+  // Validated against the same bound the API enforces, so the preview can
+  // never show a total the server would refuse to save.
+  const taxError = validateTaxPercent(state.taxPercent)
+
   const hasContent =
-    state.items.some((i) => i.description.trim() !== '') && Boolean(state.clientName.trim())
+    state.items.some((i) => i.description.trim() !== '') &&
+    Boolean(state.clientName.trim()) &&
+    !taxError
 
   // --- actions -------------------------------------------------------------
 
@@ -502,11 +508,16 @@ export function InvoiceBuilder({
                 placeholder="VAT"
               />
             </Field>
-            <Field label="Tax rate %" hint="Leave at 0 if you don't charge tax.">
+            <Field
+              label="Tax rate %"
+              hint={taxError ?? "Leave at 0 if you don't charge tax."}
+            >
               <Input
                 inputMode="decimal"
                 value={state.taxPercent}
                 onChange={(e) => set('taxPercent', e.target.value)}
+                aria-invalid={taxError ? true : undefined}
+                className={taxError ? 'ring-red-400 focus:ring-red-500' : undefined}
               />
             </Field>
           </div>
@@ -627,7 +638,9 @@ export function InvoiceBuilder({
           )}
         </div>
 
-        {!hasContent ? (
+        {taxError ? (
+          <p className="text-xs text-red-600">{taxError}</p>
+        ) : !hasContent ? (
           <p className="text-xs text-slate-500">
             Add a client name and at least one line item to send.
           </p>

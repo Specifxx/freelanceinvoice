@@ -3,7 +3,10 @@ import {
   bpsToPercent,
   computeLineAmountCents,
   computeTotals,
+  MAX_TAX_BPS,
+  MAX_TAX_PERCENT,
   percentToBps,
+  validateTaxPercent,
 } from './totals'
 
 describe('computeLineAmountCents', () => {
@@ -114,5 +117,36 @@ describe('percent <-> bps', () => {
 
   it('defaults to 0 on junk rather than NaN', () => {
     expect(percentToBps('abc')).toBe(0)
+  })
+})
+
+describe('validateTaxPercent', () => {
+  it('accepts ordinary rates', () => {
+    expect(validateTaxPercent('20')).toBeNull()
+    expect(validateTaxPercent('8.25')).toBeNull()
+    expect(validateTaxPercent('0')).toBeNull()
+  })
+
+  it('accepts an empty field, which means "not set yet"', () => {
+    expect(validateTaxPercent('')).toBeNull()
+    expect(validateTaxPercent('   ')).toBeNull()
+  })
+
+  it('rejects non-numeric and negative input', () => {
+    expect(validateTaxPercent('abc')).toContain('number')
+    expect(validateTaxPercent('-5')).toContain('negative')
+  })
+
+  it('rejects rates above the shared ceiling', () => {
+    expect(validateTaxPercent(String(MAX_TAX_PERCENT))).toBeNull()
+    expect(validateTaxPercent(String(MAX_TAX_PERCENT + 1))).toContain('1000%')
+    expect(validateTaxPercent('2500')).not.toBeNull()
+  })
+
+  it('keeps the client bound and the API bound in step', () => {
+    // The builder validates with MAX_TAX_PERCENT and the route schema caps at
+    // MAX_TAX_BPS. If these drifted apart, the live preview would happily show
+    // a total the server refuses to save, and autosave would fail opaquely.
+    expect(percentToBps(MAX_TAX_PERCENT)).toBe(MAX_TAX_BPS)
   })
 })

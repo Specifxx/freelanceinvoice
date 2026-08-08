@@ -56,11 +56,29 @@ export function computeTotals(
   }
 }
 
+/**
+ * Upper bound on a tax rate, shared by the builder and the API schema so the
+ * live preview can never render a value the server would reject.
+ */
+export const MAX_TAX_PERCENT = 1000
+export const MAX_TAX_BPS = MAX_TAX_PERCENT * 100
+
 /** Basis points from a human percentage: 8.25 -> 825. */
 export function percentToBps(percent: string | number): number {
   const n = typeof percent === 'string' ? Number(percent) : percent
   if (!Number.isFinite(n)) return 0
   return roundHalfAwayFromZero(n * 100)
+}
+
+/** Human-readable reason a tax rate is unusable, or null when it is fine. */
+export function validateTaxPercent(percent: string): string | null {
+  const trimmed = percent.trim()
+  if (trimmed === '') return null
+  const n = Number(trimmed)
+  if (!Number.isFinite(n)) return 'Enter a number, for example 20 or 8.25.'
+  if (n < 0) return 'Tax rate cannot be negative.'
+  if (n > MAX_TAX_PERCENT) return `Tax rate cannot be above ${MAX_TAX_PERCENT}%.`
+  return null
 }
 
 export function bpsToPercent(bps: number): number {

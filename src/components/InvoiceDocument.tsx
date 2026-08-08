@@ -38,11 +38,10 @@ export function InvoiceDocument({
     >
       {t.headerLayout === 'band' ? (
         <div
-          style={{
-            background: accent,
-            color: contrastOn(accent),
-            padding: '28px 40px',
-          }}
+          // Responsive padding: the same component renders inside a narrow
+          // preview column and on a full-width public page.
+          className="px-6 py-6 sm:px-10 sm:py-7"
+          style={{ background: accent, color: contrastOn(accent) }}
         >
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
@@ -63,7 +62,7 @@ export function InvoiceDocument({
         </div>
       ) : null}
 
-      <div style={{ padding: '40px' }}>
+      <div className="px-6 py-8 sm:px-10 sm:py-10">
         {t.headerLayout !== 'band' ? (
           <>
             <div className="flex flex-wrap items-start justify-between gap-6">
@@ -155,8 +154,8 @@ export function InvoiceDocument({
           </p>
         ) : null}
 
-        <div className="mt-8 overflow-x-auto">
-          <table className="w-full min-w-[480px] border-collapse text-sm">
+        <div className="mt-8 -mx-2 overflow-x-auto px-2">
+          <table className="w-full min-w-[360px] border-collapse text-sm">
             <thead>
               <tr style={{ background: t.tableHeaderBg }}>
                 <th
