@@ -20,8 +20,30 @@ function getClient(): Resend | null {
   return client
 }
 
+/**
+ * The public origin, used to build every absolute link in email and every
+ * Stripe redirect.
+ *
+ * APP_URL wins when set. Otherwise we fall back to the production domain Vercel
+ * injects automatically, which removes a chicken-and-egg on first deploy: you
+ * cannot know your URL until after deploying, and a wrong value here silently
+ * emails clients links that point at localhost.
+ *
+ * VERCEL_PROJECT_PRODUCTION_URL is the stable production domain. VERCEL_URL is
+ * the per-deployment URL and changes every push, so it is only a last resort
+ * (preview deployments) and never what a client should receive.
+ */
 export function appUrl(): string {
-  return (process.env.APP_URL ?? 'http://localhost:3000').replace(/\/+$/, '')
+  const explicit = process.env.APP_URL?.trim()
+  if (explicit) return explicit.replace(/\/+$/, '')
+
+  const vercelProd = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim()
+  if (vercelProd) return `https://${vercelProd.replace(/\/+$/, '')}`
+
+  const vercelDeployment = process.env.VERCEL_URL?.trim()
+  if (vercelDeployment) return `https://${vercelDeployment.replace(/\/+$/, '')}`
+
+  return 'http://localhost:3000'
 }
 
 export type SendResult = { ok: true; id: string | null } | { ok: false; error: string }
