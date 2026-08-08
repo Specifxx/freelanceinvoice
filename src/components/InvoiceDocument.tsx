@@ -62,7 +62,7 @@ export function InvoiceDocument({
         </div>
       ) : null}
 
-      <div className="px-6 py-8 sm:px-10 sm:py-10">
+      <div className="px-4 py-7 sm:px-10 sm:py-10">
         {t.headerLayout !== 'band' ? (
           <>
             <div className="flex flex-wrap items-start justify-between gap-6">
@@ -154,30 +154,36 @@ export function InvoiceDocument({
           </p>
         ) : null}
 
-        <div className="mt-8 -mx-2 overflow-x-auto px-2">
-          <table className="w-full min-w-[360px] border-collapse text-sm">
+        {/* min-width must clear a 390px phone minus this card's padding, or the
+            Amount column — the number the client actually needs — scrolls out
+            of sight. Most invoices are opened on a phone. */}
+        <div className="mt-8 -mx-1 overflow-x-auto px-1">
+          <table className="w-full min-w-[300px] border-collapse text-sm">
             <thead>
               <tr style={{ background: t.tableHeaderBg }}>
                 <th
-                  className="px-3 py-2.5 text-left text-xs font-semibold"
+                  className="px-2 py-2.5 text-left text-xs font-semibold sm:px-3"
                   style={{ ...headingStyle, color: t.muted }}
                 >
                   Description
                 </th>
+                {/* Qty and Rate fold into a sub-line under the description on
+                    phones — four columns cannot fit at 390px without pushing
+                    Amount out of view, and Amount is the number that matters. */}
                 <th
-                  className="px-3 py-2.5 text-right text-xs font-semibold"
+                  className="hidden px-2 py-2.5 text-right text-xs font-semibold sm:table-cell sm:px-3"
                   style={{ ...headingStyle, color: t.muted }}
                 >
                   Qty
                 </th>
                 <th
-                  className="px-3 py-2.5 text-right text-xs font-semibold"
+                  className="hidden px-2 py-2.5 text-right text-xs font-semibold sm:table-cell sm:px-3"
                   style={{ ...headingStyle, color: t.muted }}
                 >
                   Rate
                 </th>
                 <th
-                  className="px-3 py-2.5 text-right text-xs font-semibold"
+                  className="px-2 py-2.5 text-right text-xs font-semibold sm:px-3"
                   style={{ ...headingStyle, color: t.muted }}
                 >
                   Amount
@@ -198,21 +204,29 @@ export function InvoiceDocument({
               ) : (
                 snapshot.items.map((item, index) => (
                   <tr key={index} style={{ borderTop: `1px solid ${t.border}` }}>
-                    <td className="px-3 py-3">
+                    <td className="px-2 py-3 sm:px-3">
                       {item.description || (
                         <span style={{ color: t.muted }}>Item</span>
                       )}
+                      <span
+                        className="mt-0.5 block text-xs sm:hidden"
+                        style={{ color: t.muted }}
+                      >
+                        {trimQuantity(item.quantity)}
+                        {item.unit ? ` ${item.unit}` : ''} ×{' '}
+                        {formatMoney(item.unitPriceCents, currency)}
+                      </span>
                     </td>
-                    <td className="px-3 py-3 text-right whitespace-nowrap">
+                    <td className="hidden px-2 py-3 text-right whitespace-nowrap sm:table-cell sm:px-3">
                       {trimQuantity(item.quantity)}
                       {item.unit ? (
                         <span style={{ color: t.muted }}> {item.unit}</span>
                       ) : null}
                     </td>
-                    <td className="px-3 py-3 text-right whitespace-nowrap">
+                    <td className="hidden px-2 py-3 text-right whitespace-nowrap sm:table-cell sm:px-3">
                       {formatMoney(item.unitPriceCents, currency)}
                     </td>
-                    <td className="px-3 py-3 text-right font-medium whitespace-nowrap">
+                    <td className="px-2 py-3 text-right font-medium whitespace-nowrap sm:px-3">
                       {formatMoney(item.amountCents, currency)}
                     </td>
                   </tr>
