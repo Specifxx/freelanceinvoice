@@ -22,6 +22,10 @@ export function rateLimit(
   windowMs: number,
   now: number = Date.now(),
 ): RateLimitResult {
+  // Opportunistic sweep so a long-lived warm instance doesn't accumulate an
+  // entry per unique IP for its whole lifetime.
+  if (buckets.size > 5_000) pruneRateLimits(now)
+
   const existing = buckets.get(key)
 
   if (!existing || existing.resetAt <= now) {
@@ -51,8 +55,10 @@ export function resetRateLimits(): void {
 }
 
 export const LIMITS = {
-  /** Magic links per email address. */
+  /** Magic links per email address. Uses the shared Postgres-backed limiter. */
   magicLink: { limit: 5, windowMs: 15 * 60_000 },
+  /** Magic links per IP — stops one source cycling through many addresses. */
+  magicLinkPerIp: { limit: 15, windowMs: 15 * 60_000 },
   /** Anonymous draft saves per IP. */
   draftSave: { limit: 120, windowMs: 60_000 },
   /** PDF renders per IP — the most CPU-expensive anonymous action. */

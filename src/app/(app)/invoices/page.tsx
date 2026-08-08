@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { createInvoiceAction } from '../actions'
-import { Badge, Button, ButtonLink, EmptyState } from '@/components/ui'
+import { Alert, Badge, Button, ButtonLink, EmptyState } from '@/components/ui'
 import { requireUser } from '@/lib/auth'
 import { formatDateHuman } from '@/lib/dates'
 import { checkCanSend } from '@/lib/entitlements'
@@ -16,7 +16,12 @@ import { formatMoney } from '@/lib/money'
 
 export const metadata: Metadata = { title: 'Invoices', robots: { index: false } }
 
-export default async function InvoicesPage() {
+export default async function InvoicesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ claim?: string }>
+}) {
+  const { claim } = await searchParams
   const user = await requireUser()
   const [invoices, sentThisPeriod] = await Promise.all([
     listOwnedInvoices(user.id),
@@ -43,6 +48,15 @@ export default async function InvoicesPage() {
           <Button type="submit">New invoice</Button>
         </form>
       </div>
+
+      {claim === 'failed' ? (
+        <Alert tone="warning">
+          You&rsquo;re signed in, but we couldn&rsquo;t bring your in-progress
+          invoice across — it was started in a different browser and had already
+          been claimed or cleared. If the original tab is still open, your work
+          is still there.
+        </Alert>
+      ) : null}
 
       {!sendCheck.allowed ? (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-900 ring-1 ring-amber-200 ring-inset">

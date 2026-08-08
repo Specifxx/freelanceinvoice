@@ -31,28 +31,63 @@ export function isValidEmail(email: string): boolean {
 // Magic-link tokens
 // ---------------------------------------------------------------------------
 
-export async function createLoginToken(
-  email: string,
-  claimDraftId?: string | null,
-): Promise<string> {
+export async function createLoginToken(options: {
+  email: string
+  claimDraftId?: string | null
+  /**
+   * Captured from the REQUESTER's cookie, so the draft claim survives the link
+   * being opened on a different device.
+   */
+  anonymousSessionId?: string | null
+}): Promise<string> {
   const token = newSecretToken()
   const expiresAt = new Date(Date.now() + LOGIN_TOKEN_TTL_MINUTES * 60_000)
 
   await db.insert(loginTokens).values({
     tokenHash: sha256(token),
-    email: normalizeEmail(email),
-    claimDraftId: claimDraftId ?? null,
+    email: normalizeEmail(options.email),
+    claimDraftId: options.claimDraftId ?? null,
+    anonymousSessionId: options.anonymousSessionId ?? null,
     expiresAt,
   })
 
   return token
 }
 
-export type ConsumedToken = { email: string; claimDraftId: string | null }
+export type ConsumedToken = {
+  email: string
+  claimDraftId: string | null
+  anonymousSessionId: string | null
+}
+
+/** Reads a token without spending it, for rendering the confirm screen. */
+export async function peekLoginToken(
+  token: string,
+): Promise<{ email: string; hasDraft: boolean } | null> {
+  const [row] = await db
+    .select()
+    .from(loginTokens)
+    .where(
+      and(
+        eq(loginTokens.tokenHash, sha256(token)),
+        isNull(loginTokens.usedAt),
+        gt(loginTokens.expiresAt, new Date()),
+      ),
+    )
+    .limit(1)
+
+  if (!row) return null
+  return { email: row.email, hasDraft: Boolean(row.claimDraftId) }
+}
 
 /**
  * Single-use: the UPDATE only matches rows where used_at IS NULL, so two
  * concurrent clicks on the same link cannot both succeed.
+ *
+ * Only ever called from a POST. Corporate mail gateways and inbox assistants
+ * routinely GET every URL in a message to scan it; if that spent the token, the
+ * human who clicks afterwards would be permanently locked out with no recovery
+ * path — there is no password to fall back on.
  */
 export async function consumeLoginToken(
   token: string,
@@ -73,7 +108,11 @@ export async function consumeLoginToken(
     .returning()
 
   if (!row) return null
-  return { email: row.email, claimDraftId: row.claimDraftId }
+  return {
+    email: row.email,
+    claimDraftId: row.claimDraftId,
+    anonymousSessionId: row.anonymousSessionId,
+  }
 }
 
 // ---------------------------------------------------------------------------

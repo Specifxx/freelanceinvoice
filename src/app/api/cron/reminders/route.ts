@@ -6,13 +6,29 @@ import { daysBetweenIso, formatDateHuman, todayIso } from '@/lib/dates'
 import { appUrl, renderEmailHtml, sendEmail } from '@/lib/email'
 import { recordEvent } from '@/lib/events'
 import { formatMoney } from '@/lib/money'
+import { purgeStaleRateLimits } from '@/lib/rate-limit-shared'
 import { defaultReminderCopy, isReminderTone } from '@/lib/reminders'
 import { getNiche } from '@/niches'
 import { safeEqual } from '@/lib/tokens'
 
 export const runtime = 'nodejs'
-// Reminder batches can outrun the default serverless timeout.
+// Requested ceiling. Vercel Hobby caps functions at 10s regardless of this, so
+// the sweep budgets its own time below rather than trusting it — see BUDGET_MS.
 export const maxDuration = 60
+
+/**
+ * Stop sending and return cleanly before the platform kills us mid-batch.
+ * Default 8s keeps us inside the 10s Hobby ceiling; set CRON_BUDGET_MS higher
+ * (e.g. 50000) on Pro, where maxDuration above is honoured.
+ *
+ * Being killed is survivable — reminders are marked sent one at a time and the
+ * query picks up everything still due — but exiting deliberately lets us
+ * report the backlog instead of vanishing mid-run.
+ */
+const BUDGET_MS = Number(process.env.CRON_BUDGET_MS ?? 8000)
+
+/** Bounded so one sweep cannot run away; the remainder waits for the next run. */
+const BATCH_LIMIT = 200
 
 /**
  * The daily sweep. Runs at 09:00 UTC via vercel.json.
@@ -33,6 +49,7 @@ export async function GET(request: Request) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  const startedAt = Date.now()
   const now = new Date()
   const due = await db
     .select({ reminder: reminders, doc: documents, owner: users })
@@ -48,13 +65,21 @@ export async function GET(request: Request) {
         isNull(documents.paidAt),
       ),
     )
-    .limit(200)
+    .limit(BATCH_LIMIT)
 
   let sent = 0
   let skipped = 0
   let failed = 0
+  let remaining = 0
 
   for (const row of due) {
+    // Out of time: leave the rest pending. They are still `scheduled_for <=
+    // now`, so the next run picks them up from the front.
+    if (Date.now() - startedAt > BUDGET_MS) {
+      remaining = due.length - (sent + skipped + failed)
+      break
+    }
+
     const { reminder, doc, owner } = row
 
     if (!doc.remindersEnabled || !doc.clientEmail || !owner) {
@@ -120,7 +145,11 @@ export async function GET(request: Request) {
     }
   }
 
-  await purgeExpiredAuthRows()
+  // Housekeeping only if there is time left; sending reminders comes first.
+  if (Date.now() - startedAt < BUDGET_MS) {
+    await purgeExpiredAuthRows()
+    await purgeStaleRateLimits()
+  }
 
   return Response.json({
     ok: true,
@@ -128,9 +157,12 @@ export async function GET(request: Request) {
     sent,
     skipped,
     failed,
-    // Surfaced deliberately: a silently truncated batch would look like a
-    // quiet day rather than a backlog.
-    truncated: due.length === 200,
+    durationMs: Date.now() - startedAt,
+    // Both surfaced deliberately: a silently truncated batch would read as a
+    // quiet day rather than a backlog. If either is persistently non-zero,
+    // raise CRON_BUDGET_MS (on Pro) or send more often.
+    remainingThisRun: remaining,
+    batchFull: due.length === BATCH_LIMIT,
   })
 }
 

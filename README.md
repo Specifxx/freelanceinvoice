@@ -14,7 +14,7 @@ for the product strategy, data model rationale, and roadmap.
 |---|---|
 | **Free invoice generator** | `/free-invoice-generator` — build and download a PDF with no account. The draft row is created on first save, not page load. |
 | **Niche landing pages** | `/photography-invoice-template` and three more, statically generated from `src/niches/`. |
-| **Passwordless auth** | Magic link. Signing up claims the anonymous draft you were working on, business details and all. |
+| **Passwordless auth** | Magic link with a one-tap confirm screen. Signing up claims the anonymous draft you were working on — including when you request the link on a laptop and open it on your phone. |
 | **Invoices** | Create, edit, duplicate, per-user numbering, three themes, custom accent colour. |
 | **Send** | Emailed from our domain with the freelancer's name and a Reply-To that reaches them, PDF attached. |
 | **Snapshotting** | An invoice freezes on send. Editing a sent invoice is refused — duplicate instead. |
@@ -176,6 +176,21 @@ Decisions that will otherwise look odd:
 - **Entitlements live in one module.** `src/lib/entitlements.ts` is the single
   source of truth; the UI renders lock badges from the same object the server
   enforces with.
+- **The magic link is never spent by a GET.** Corporate mail gateways and inbox
+  assistants routinely fetch every URL in a message to scan it. If that
+  consumed the token, the human who clicks afterwards would be locked out with
+  no password to fall back on — so `/api/auth/callback` only forwards to a
+  confirm screen, and `/api/auth/confirm` (POST) does the actual sign-in.
+- **The draft claim rides on the login token, not on a cookie.** The anonymous
+  session id is captured when the link is *requested* and stored on the token
+  row. Reading the opener's cookie instead would silently orphan the draft
+  whenever someone requests the link on a laptop and opens it on a phone —
+  which is most people.
+- **Two rate limiters, deliberately.** `src/lib/rate-limit.ts` is an in-memory
+  Map: on Vercel that is per-lambda, which is fine where abuse only costs our
+  own CPU. `src/lib/rate-limit-shared.ts` is Postgres-backed and used for
+  `/api/auth/magic-link`, which emails arbitrary addresses from the one
+  verified domain every invoice depends on.
 - **Ownership is in the WHERE clause.** `getOwnedDocument(id, ownerId)` is the
   only way app code loads an invoice. A forgotten owner comparison is how this
   product shape leaks every customer's invoices.
@@ -192,7 +207,10 @@ Decisions that will otherwise look odd:
   single-use with a 15-minute expiry.
 - Webhook signatures are verified against the raw body and deduped through the
   `webhook_events` ledger. A failed handler releases its claim so Stripe's retry
-  does real work.
+  does real work. The Resend endpoint verifies its Svix signature and refuses to
+  run at all without `RESEND_WEBHOOK_SECRET`; it returns an identical body for
+  matched and unmatched recipients so it cannot be used as an "is this address
+  someone's client?" oracle.
 - Anonymous visitors can download but never send, which is both the conversion
   gate and what stops the free tool being used as a spam relay.
 - IPs are hashed before being written to `document_events`.

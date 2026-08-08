@@ -114,6 +114,13 @@ export const loginTokens = pgTable(
     email: text('email').notNull(),
     // Draft to claim into the account once the link is used.
     claimDraftId: uuid('claim_draft_id'),
+    /**
+     * The requester's anonymous session id, captured when the link was ASKED
+     * FOR rather than read from whoever opens it. People request the link on a
+     * laptop and open it on a phone, where no fi_anon cookie exists — binding
+     * the claim to the opener's cookie silently loses their draft.
+     */
+    anonymousSessionId: text('anonymous_session_id'),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     usedAt: timestamp('used_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true })
@@ -122,6 +129,19 @@ export const loginTokens = pgTable(
   },
   (t) => [uniqueIndex('login_tokens_hash_unique').on(t.tokenHash)],
 )
+
+/**
+ * Shared-store rate limiting. The in-memory limiter in src/lib/rate-limit.ts is
+ * per-lambda on Vercel, which caps nothing globally — fine for cheap endpoints,
+ * useless for the one that sends email to an arbitrary address.
+ */
+export const rateLimits = pgTable('rate_limits', {
+  key: text('key').primaryKey(),
+  count: integer('count').notNull().default(0),
+  windowStart: timestamp('window_start', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+})
 
 /** Sessions. Only the SHA-256 hash of the session token is stored. */
 export const sessions = pgTable(

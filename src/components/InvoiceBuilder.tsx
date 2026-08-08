@@ -59,6 +59,9 @@ export type BuilderProps = {
 
 const CURRENCIES = ['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'NZD', 'JPY', 'CHF', 'SEK', 'INR']
 
+/** Points at the draft the anonymous builder was last working on. */
+const LAST_DRAFT_KEY = 'fi_last_draft'
+
 let keySeed = 0
 function nextKey() {
   keySeed += 1
@@ -95,6 +98,34 @@ export function InvoiceBuilder({
   // backstop; the server save is what makes the draft claimable at signup.
   const firstRender = useRef(true)
   const savedRef = useRef<string>('')
+
+  /**
+   * Restore on mount. Mobile browsers evict background tabs aggressively — a
+   * user who switches apps to look up a client's address comes back to a
+   * reloaded page, and without this every line item they typed is gone.
+   */
+  useEffect(() => {
+    if (initialDocumentId) return
+    try {
+      const storedId = localStorage.getItem(LAST_DRAFT_KEY)
+      const raw = localStorage.getItem(`fi_draft_${storedId ?? 'new'}`)
+      if (!raw) return
+      const restored = JSON.parse(raw) as Partial<BuilderState>
+      if (!Array.isArray(restored.items) || restored.items.length === 0) return
+      // Keys are regenerated: React needs them unique, and a stale key from a
+      // previous session can collide with a freshly added row.
+      setState({
+        ...initial,
+        ...restored,
+        items: restored.items.map((item) => ({ ...item, key: nextKey() })),
+      })
+      if (storedId) setDocumentId(storedId)
+    } catch {
+      // Corrupt or unreadable storage — start fresh rather than crash.
+    }
+    // Mount only: re-running would clobber edits made since.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const serialise = useCallback(
     (s: BuilderState) => ({
@@ -142,6 +173,11 @@ export function InvoiceBuilder({
         const data = (await created.json()) as { id: string }
         id = data.id
         setDocumentId(id)
+        try {
+          localStorage.setItem(LAST_DRAFT_KEY, id)
+        } catch {
+          // Storage unavailable; the id still lives in React state.
+        }
       } else if (body === savedRef.current) {
         setSaveState('saved')
         return id
